@@ -1,0 +1,18 @@
+
+high-level todos:
+ - complete dreamer and world-models model learning today
+
+
+
+todos:
+ - generate samples
+ - 
+
+
+
+future todos:
+ - compare parameters in dreamer and world-models.. should be roughly the same
+ - how to do hyperparameter search.. tune?
+ - change sampling procedure to same as supervised learning.. sample from shuffled data IDs:
+    - training loop can probably done in terms of epochs, as dataset is finite
+
