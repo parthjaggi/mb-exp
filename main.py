@@ -16,7 +16,7 @@ def run():
 
     model = Model(config, datadir)
 
-
+    train(model, config)
 
 
     # choose and load model
@@ -38,7 +38,21 @@ def run():
     pass
 
 
-def train(model):
+def train1(model, config):
+    # random sampling with limits based on 
+
+    # while steps < config.steps:
+        # sample = get_sample()
+        # model.batch_update_model(sample)
+        # steps += config.batch_size * config.batch_length
+        
+
+        
+        
+    pass
+
+def train2():
+    # epoch style training
     # for e in epochs:
         # no. of batches = dataset / batch_size
         # for i in batch_num:
@@ -49,7 +63,22 @@ def train(model):
             
             # if video_logging_interval:
                 # add video plots
-    pass
+    
+    # shuffle dataset
+    # 
+
+    for _ in epochs:
+        batch_count = dataset_size(config) / config.batch_size
+        for _ in range(batch_count):
+            model.batch_update_model()
+
+    
+
+
+def dataset_size(config):
+    episode_size = 500
+    num_episodes = len(config.datadir.glob('*.npz'))
+    return (episode_size - config.batch_length) * num_episodes
 
 
 def load_config(path):

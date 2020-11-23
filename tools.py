@@ -73,3 +73,9 @@ def load_episodes(directory, rescan, length=None, balance=False, seed=0):
                 episode = {k: v[index : index + length] for k, v in episode.items()}
             yield episode
 
+def get_sample(id):
+    # given id, find episode, and then find batch
+    # 
+    pass
+
+

@@ -16,3 +16,63 @@ future todos:
  - change sampling procedure to same as supervised learning.. sample from shuffled data IDs:
     - training loop can probably done in terms of epochs, as dataset is finite
 
+
+
+
+
+work on porting dreamer to this repo
+shape the apis based on the requirement of dreamer
+other models should have similar use-cases as well.
+
+
+check how things are sampled from danijar dreamer. 
+ - sampling is checked. do it in pytorch?
+ - replicate it
+
+create a training loop
+ - see how dreamer does it
+
+copy relevant files
+
+tf or pytorch?
+
+
+
+
+
+
+when to stop the simulation:
+ - when you added required number of steps inside buffer (or disk)
+
+for logging, is log_every = 1000 log every 1000 steps:
+ - yes, every 1000 steps, we log. 
+ - steps are based on num_envs and action_repeat
+
+how is self._step updated inside the __call__ method.
+ - self._step += num_envs * action_repeat
+    - if num_envs = 1, action_repeat = 2, 2 steps have been added.
+    - self._step works in the same way as count_steps -> steps in the main method
+ - __call__ is called for each new transition added. each transition is worth action_repeat steps
+ - self._step also accounts for those transitions are being generated, but have not yet been saved
+    - this is why for ending training on those that are on disk are considered
+
+who is counting the steps, if the graphs being generated are based on no. of steps:
+ - counted inside of __call__ method in the form of self._step
+ - also inside the main method, count_steps is used to count the steps in buffer (or disk)
+
+
+does dreamer load episodes into memory or just load them from the disk:
+ - 
+
+
+
+create the training loop.
+ - given any model, get some samples from the episodes and 'update' dummy model
+
+
+
+
+ - complete the dreamer parts with dreamer-pytorch, can danijar dreamer by used?
+
+
+ - 

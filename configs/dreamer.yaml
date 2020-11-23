@@ -1,5 +1,6 @@
 
 # General.
+epochs: 10
 seed: 0
 steps: 5000000
 eval_every: 10000
