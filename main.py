@@ -4,34 +4,21 @@ import pprint
 import yaml
 import pathlib
 
-from tools import AttrDict
+from tools import AttrDict, num_of_sequence_samples
 from argparser import parser
 from models.base_model import Model
 
 
 
-def run():
-    config = load_config('configs/dreamer.yaml')
-    datadir = config.logdir / 'episodes'
-
-    model = Model(config, datadir)
-
-    train(model, config)
+def run(config, override_config):
+    config = load_config(config)
+    model = Model(config)
+    train1(model, config)
 
 
-    # choose and load model
+    # choose and initialize model
 
     # training loop
-
-        # shuffled batches make more sense than sampling randomly from the dataset.
-            # then we can have notion of epochs
-
-        # sample from the episodes
-            # look how dreamer samples from the disk
-
-        # eval after every log_interval
-
-        # video log after every video_log_interval
 
     # save model progress repeatedly
 
@@ -39,46 +26,45 @@ def run():
 
 
 def train1(model, config):
-    # random sampling with limits based on 
-
-    # while steps < config.steps:
-        # sample = get_sample()
-        # model.batch_update_model(sample)
-        # steps += config.batch_size * config.batch_length
+    # random sampling from disk episodes
+    steps = 0
         
+    while steps < config.steps:
+        model.batch_update_model()
+        steps += config.batch_size * config.batch_length
+        do_logging(model, config, steps)
 
-        
-        
-    pass
 
-def train2():
-    # epoch style training
-    # for e in epochs:
-        # no. of batches = dataset / batch_size
-        # for i in batch_num:
-            # model.batch_update_model()
-
-            # if logging_interval:
-                # add tb plots
-            
-            # if video_logging_interval:
-                # add video plots
+def train2(model, config):
+    # shuffled samples. epoch style training
+    steps = 0
     
-    # shuffle dataset
-    # 
-
-    for _ in epochs:
-        batch_count = dataset_size(config) / config.batch_size
+    for _ in config.epochs:
+        batch_count = num_of_sequence_samples(config) / config.batch_size
         for _ in range(batch_count):
             model.batch_update_model()
+            steps += config.batch_size * config.batch_length
+            do_logging(model, config, steps)
 
+
+def do_logging(model, config, steps):
+    if model.should_eval(steps):
+        # eval model on test episodes
+        pass
+
+    if model.should_log(steps):
+        # do logging
+        pass
+
+    if model.should_image_log(steps):
+        # save video
+        pass
     
-
-
-def dataset_size(config):
-    episode_size = 500
-    num_episodes = len(config.datadir.glob('*.npz'))
-    return (episode_size - config.batch_length) * num_episodes
+    if model.should_save_model(steps):
+        # save model. qmix style: different for each save?
+        # save current for now.
+        model.save()
+        pass
 
 
 def load_config(path):
@@ -86,11 +72,13 @@ def load_config(path):
         config = yaml.load(f)
     config = AttrDict(config)
 
-    config.logdir = pathlib.Path('.')
+    config.dir = pathlib.Path('.')
+    config.logdir = config.dir / 'logs'
+    config.datadir = config.dir / 'data/dtse'
     
     return config
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    run(args.config_file, args.override_config_file)
+    run(args.config, args.override_config)

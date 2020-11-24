@@ -3,12 +3,16 @@
 epochs: 10
 seed: 0
 steps: 5000000
+eval_episodes: 2
 eval_every: 10000
 log_every: 1000
+image_log_every: 50000
 log_scalars: True
 log_images: True
 gpu_growth: True
 precision: 16
+save_model_every: 20000
+checkpoint_path: "."
 
 # Environment.
 task: dmc_walker_walk

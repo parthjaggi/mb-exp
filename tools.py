@@ -2,6 +2,7 @@ import pathlib
 import numpy as np
 import functools
 import tensorflow as tf
+from tensorflow.keras.mixed_precision import experimental as prec
 
 
 class AttrDict(dict):
@@ -19,11 +20,22 @@ def preprocess(obs, config):
     return obs
 
 
-def load_dataset(directory, config):
-    episode = next(load_episodes(directory, 1))
+# def preprocess(obs, config):
+#     # dtype = prec.global_policy().compute_dtype
+#     obs = obs.copy()
+#     # with tf.device('cpu:0'):
+#     obs['image'] = np.cast['float16'](obs['image']) / 255.0 - 0.5  # change 255 to 1. as our obs have max of 1.
+#     clip_rewards = dict(none=lambda x: x, tanh=tf.tanh)[config.clip_rewards]
+#     obs['reward'] = clip_rewards(obs['reward'])
+#     return obs
+
+
+def load_dataset(config, eps):
+    directory = config.datadir
+    episode = next(load_episodes(directory, 1, eps=eps))
     types = {k: v.dtype for k, v in episode.items()}
     shapes = {k: (None,) + v.shape[1:] for k, v in episode.items()}
-    generator = lambda: load_episodes(directory, config.train_steps, config.batch_length, config.dataset_balance)
+    generator = lambda: load_episodes(directory, config.train_steps, config.batch_length, config.dataset_balance, eps=eps)
     dataset = tf.data.Dataset.from_generator(generator, types, shapes)
     dataset = dataset.batch(config.batch_size, drop_remainder=True)
     dataset = dataset.map(functools.partial(preprocess, config=config))
@@ -31,7 +43,7 @@ def load_dataset(directory, config):
     return dataset
 
 
-def load_episodes(directory, rescan, length=None, balance=False, seed=0):
+def load_episodes(directory, rescan, length=None, balance=False, seed=0, eps=[]):
     """
     Args:
         directory (pathlib.PosixPath): directory.
@@ -47,12 +59,17 @@ def load_episodes(directory, rescan, length=None, balance=False, seed=0):
     random = np.random.RandomState(seed)
     cache = {}  # cache has all episode files
     while True:
-        for filename in directory.glob('*.npz'):
+        # for filename in directory.glob('*.npz'):
+        for filename in eps:
             if filename not in cache:
                 try:
                     with filename.open('rb') as f:
-                        episode = np.load(f)
-                        episode = {k: episode[k] for k in episode.keys()}
+                        # episode = np.load(f)
+                        episode = np.load(f, allow_pickle=True)
+                        episode = episode.item()
+                        episode['image'] = episode['obs']
+                        del episode['obs']
+                        # episode = {k: episode[k] for k in episode.keys()}
                 except Exception as e:
                     print(f'Could not load episode: {e}')
                     continue
@@ -77,5 +94,40 @@ def get_sample(id):
     # given id, find episode, and then find batch
     # 
     pass
+
+def num_of_sequence_samples(config):
+    # returns the number of samples that can be created.
+    # based on number of episodes, their size and the batch length.
+    episode_size = 500
+    num_episodes = len(config.datadir.glob('*.npz'))
+    return (episode_size - config.batch_length) * num_episodes
+
+
+class Every:
+
+  def __init__(self, every):
+    self._every = every
+    self._last = None
+
+  def __call__(self, step):
+    if self._last is None:
+      self._last = step
+      return True
+    if step >= self._last + self._every:
+      self._last += self._every
+      return True
+    return False
+
+
+class Once:
+
+  def __init__(self):
+    self._once = True
+
+  def __call__(self):
+    if self._once:
+      self._once = False
+      return True
+    return False
 
 

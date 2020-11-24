@@ -68,11 +68,68 @@ does dreamer load episodes into memory or just load them from the disk:
 
 create the training loop.
  - given any model, get some samples from the episodes and 'update' dummy model
-
+    - train with dreamer style samples
+    -    
 
 
 
  - complete the dreamer parts with dreamer-pytorch, can danijar dreamer by used?
 
 
- - 
+
+
+ - save episodes how dreamer saves it, but setting up danijar dreamer with wolf
+
+
+
+
+ - saving and loading of models from disk
+
+
+
+<current>
+ - modifying danijar dreamer to record dtse obs episodes
+ <left above>
+ - running sowcode3 to record compact dtse episodes. then resume testing the framework.
+
+
+
+ - dataset of tf is not working as expected
+    - debug it with some print statements inside preprocess
+       - issue might not be there as error still persists without preprocess
+       - does danijar dreamer give same error if preprocess is commented
+
+    - can use rlpyt framework for handling sequence observations
+    - can use pytorch dataset and handle everything myself
+
+ - make sample numpy? yes.
+
+
+
+- fix preprocessing
+
+
+
+
+
+
+
+
+dreamer episode:
+>>> episode.keys()
+dict_keys(['image', 'action', 'reward', 'discount'])
+>>> episode['image'].shape
+(501, 64, 64, 3)
+>>> episode['action'].shape
+(501, 18)
+>>> episode['reward'].shape
+(501,)
+>>> episode['discount'].shape
+(501,)
+
+prec.global_policy().compute_dtype
+'float32'
+
+
+{k: v.dtype for k, v in episode.items()}
+{'action': dtype('int64'), 'image': dtype('float64'), 'reward': dtype('int64')}
