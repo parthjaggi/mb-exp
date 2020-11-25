@@ -1,46 +1,38 @@
 
 high-level todos:
+ - complete basic training of single timestep model today
+    - test the framework on it
  - complete dreamer and world-models model learning today
+    - shape the apis based on dreamer
+    - other models should be similar
+
+
+
 
 
 
 todos:
- - generate samples
  - 
+ - 
+
+
+
 
 
 
 future todos:
  - compare parameters in dreamer and world-models.. should be roughly the same
  - how to do hyperparameter search.. tune?
- - change sampling procedure to same as supervised learning.. sample from shuffled data IDs:
+ - should you change the sampling procedure to same as supervised learning:
+    - sample from shuffled data IDs
     - training loop can probably done in terms of epochs, as dataset is finite
 
 
 
 
 
-work on porting dreamer to this repo
-shape the apis based on the requirement of dreamer
-other models should have similar use-cases as well.
 
-
-check how things are sampled from danijar dreamer. 
- - sampling is checked. do it in pytorch?
- - replicate it
-
-create a training loop
- - see how dreamer does it
-
-copy relevant files
-
-tf or pytorch?
-
-
-
-
-
-
+NOTES:
 when to stop the simulation:
  - when you added required number of steps inside buffer (or disk)
 
@@ -60,49 +52,29 @@ who is counting the steps, if the graphs being generated are based on no. of ste
  - counted inside of __call__ method in the form of self._step
  - also inside the main method, count_steps is used to count the steps in buffer (or disk)
 
-
 does dreamer load episodes into memory or just load them from the disk:
- - 
-
-
-
-create the training loop.
- - given any model, get some samples from the episodes and 'update' dummy model
-    - train with dreamer style samples
-    -    
-
-
-
- - complete the dreamer parts with dreamer-pytorch, can danijar dreamer by used?
+ - dreamer loads the episodes to cache, and a generator fetches randomly from cache
 
 
 
 
- - save episodes how dreamer saves it, but setting up danijar dreamer with wolf
+
+
+create a training loop
+ - given any model, get samples and 'update' dummy model
+
+ - replicate dreamer training loop
+ - copy relevant dreamer files
+ - copy tf first
+ - later on dreamer-pytorch can be added
 
 
 
 
- - saving and loading of models from disk
+checkpointing and loading of trained models
+ - prefer the qmix style of repeated saving
+ - but if short of time, can do danijar way: saved last model
 
-
-
-<current>
- - modifying danijar dreamer to record dtse obs episodes
- <left above>
- - running sowcode3 to record compact dtse episodes. then resume testing the framework.
-
-
-
- - dataset of tf is not working as expected
-    - debug it with some print statements inside preprocess
-       - issue might not be there as error still persists without preprocess
-       - does danijar dreamer give same error if preprocess is commented
-
-    - can use rlpyt framework for handling sequence observations
-    - can use pytorch dataset and handle everything myself
-
- - make sample numpy? yes.
 
 
 
@@ -113,7 +85,16 @@ create the training loop.
 
 
 
+DONE:
+ - running sowcode3 to record compact dtse episodes
+ - debugged the load_episodes method, to get samples the danijar way
 
+
+
+
+
+
+FURTHER NOTES:
 
 dreamer episode:
 >>> episode.keys()
@@ -130,6 +111,6 @@ dict_keys(['image', 'action', 'reward', 'discount'])
 prec.global_policy().compute_dtype
 'float32'
 
-
+sow45_code3 episode:
 {k: v.dtype for k, v in episode.items()}
 {'action': dtype('int64'), 'image': dtype('float64'), 'reward': dtype('int64')}
