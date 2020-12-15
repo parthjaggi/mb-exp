@@ -4,26 +4,23 @@ import pprint
 import yaml
 import pathlib
 
-from tools import AttrDict, num_of_sequence_samples
+from tools import AttrDict, num_of_sequence_samples, get_timestamp
 from argparser import parser
 from models.base_model import Model
+from models.conv_model import ConvModel
+from models.veh_model import VehModel
 
 
 
 def run(config, override_config):
     config = load_config(config)
-    model = Model(config)
-    train1(model, config)
 
+    if config.type == 'conv':
+        model = ConvModel(config)
+    elif config.type == 'veh':
+        model = VehModel(config)
 
-    # choose and initialize model
-
-    # training loop
-
-    # save model progress repeatedly
-
-    pass
-
+    model.train()
 
 def train1(model, config):
     # random sampling from disk episodes
@@ -69,13 +66,17 @@ def do_logging(model, config, steps):
 
 def load_config(path):
     with open(path) as f:
-        config = yaml.load(f)
+        config = yaml.safe_load(f)
     config = AttrDict(config)
-
-    config.dir = pathlib.Path('.')
-    config.logdir = config.dir / 'logs'
-    config.datadir = config.dir / 'data/dtse'
+    timestamp = get_timestamp()
     
+    config.dir = pathlib.Path('.')
+    config.resdir = pathlib.Path('.') / config.resdir
+    config.logdir = config.resdir / timestamp
+    config.datadir = config.dir / config.datadir
+
+    config.resdir.mkdir(exist_ok=True)
+    config.logdir.mkdir(exist_ok=True)
     return config
 
 
