@@ -1,7 +1,7 @@
 
 # General.
 epochs: 1000 # 1, 10, 1000
-type: "dream"
+type: "veh"
 early_stop_patience: 40
 seed: 0
 steps: 5000000
@@ -17,7 +17,7 @@ save_model_every: 20000
 checkpoint_path: "."
 resdir: "results"
 logdir: "logs"
-datadir: "data/dtse/test0_1"
+datadir: "data/vehicle/"
 
 # Environment.
 task: dmc_walker_walk
@@ -45,7 +45,7 @@ weight_decay_pattern: r'.*'
 
 # Training.
 batch_size: 50
-batch_length: 20
+batch_length: 1
 train_every: 1000
 train_steps: 100
 pretrain: 100

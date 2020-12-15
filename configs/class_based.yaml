@@ -1,7 +1,7 @@
 
 # General.
-epochs: 1000 # 1, 10, 1000
-type: "dream"
+epochs: 10000 # 1, 10, 1000
+type: "class"  # classification
 early_stop_patience: 40
 seed: 0
 steps: 5000000
@@ -45,7 +45,7 @@ weight_decay_pattern: r'.*'
 
 # Training.
 batch_size: 50
-batch_length: 20
+batch_length: 2
 train_every: 1000
 train_steps: 100
 pretrain: 100

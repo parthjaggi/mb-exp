@@ -15,10 +15,12 @@ from models.veh_model import VehModel
 def run(config, override_config):
     config = load_config(config)
 
-    if config.type == 'conv':
+    if config.type in ['conv', 'conv_speed', 'class']:
         model = ConvModel(config)
     elif config.type == 'veh':
         model = VehModel(config)
+    else:
+        raise NotImplementedError
 
     model.train()
 

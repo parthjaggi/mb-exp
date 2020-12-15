@@ -11,7 +11,13 @@
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "args": [
-                "configs/dreamer.yaml"
+                // "configs/dreamer.yaml",
+
+                // "configs/conv_based.yaml",
+                // "configs/conv_speed_based.yaml",
+                "configs/class_based.yaml",
+
+                // "configs/vm_based.yaml"
             ]
         }
     ]
