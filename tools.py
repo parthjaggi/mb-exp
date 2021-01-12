@@ -5,6 +5,7 @@ import tensorflow as tf
 import torch
 from tensorflow.keras.mixed_precision import experimental as prec
 import datetime
+from decimal import Decimal
 
 
 class AttrDict(dict):
@@ -162,3 +163,6 @@ class Once:
     return False
 
 
+def pformat(x, digits=8):
+    # makes loss tensors like 4e-6 more readable when printing.
+    return round(Decimal(x.item()), digits)

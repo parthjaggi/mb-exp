@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "test1",
+            "name": "train-model",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
@@ -19,6 +19,14 @@
 
                 // "configs/vm_based.yaml"
             ]
+        },
+        {
+            "name": "mcts",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_mcts.py",
+            "console": "integratedTerminal",
+            "args": []
         }
     ]
 }
