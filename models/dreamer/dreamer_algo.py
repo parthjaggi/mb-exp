@@ -10,10 +10,10 @@ from tqdm import tqdm
 import ffmpeg
 from cv2 import VideoWriter, VideoWriter_fourcc
 
-from dreamer.algos.replay import initialize_replay_buffer, samples_to_buffer
-from dreamer.models.rnns import get_feat, get_dist
-from dreamer.utils.logging import video_summary
-from dreamer.utils.module import get_parameters, FreezeParameters
+# from dreamer.algos.replay import initialize_replay_buffer, samples_to_buffer
+from models.dreamer.models.rnns import get_feat, get_dist
+from models.dreamer.utils.logging import video_summary
+from models.dreamer.utils.module import get_parameters, FreezeParameters
 
 torch.autograd.set_detect_anomaly(True)  # used for debugging gradients
 
@@ -86,7 +86,7 @@ class Dreamer(RlAlgorithm):
         self.n_itr = n_itr
         self.batch_spec = batch_spec
         self.mid_batch_reset = mid_batch_reset
-        self.replay_buffer = initialize_replay_buffer(self, examples, batch_spec)
+        # self.replay_buffer = initialize_replay_buffer(self, examples, batch_spec)
         self.optim_initialize(rank)
 
     def async_initialize(self, agent, sampler_n_itr, batch_spec, mid_batch_reset, examples, world_size=1):
@@ -94,7 +94,7 @@ class Dreamer(RlAlgorithm):
         self.n_itr = sampler_n_itr
         self.batch_spec = batch_spec
         self.mid_batch_reset = mid_batch_reset
-        self.replay_buffer = initialize_replay_buffer(self, examples, batch_spec, async_=True)
+        # self.replay_buffer = initialize_replay_buffer(self, examples, batch_spec, async_=True)
 
     def optim_initialize(self, rank=0):
         self.rank = rank
@@ -138,9 +138,9 @@ class Dreamer(RlAlgorithm):
 
     def optimize_agent(self, itr, samples=None, sampler_itr=None):
         itr = itr if sampler_itr is None else sampler_itr
-        if samples is not None:
-            # Note: discount not saved here
-            self.replay_buffer.append_samples(samples_to_buffer(samples))
+        # if samples is not None:
+        #     # Note: discount not saved here
+        #     self.replay_buffer.append_samples(samples_to_buffer(samples))
 
         opt_info = OptInfo(*([] for _ in range(len(OptInfo._fields))))
         if itr < self.prefill:
@@ -149,7 +149,8 @@ class Dreamer(RlAlgorithm):
             return opt_info
         for i in tqdm(range(self.train_steps), desc='Imagination'):
 
-            samples_from_replay = self.replay_buffer.sample_batch(self._batch_size, self.batch_length)
+            # samples_from_replay = self.replay_buffer.sample_batch(self._batch_size, self.batch_length)
+            samples_from_replay = samples
             buffed_samples = buffer_to(samples_from_replay, self.agent.device)
             model_loss, actor_loss, value_loss, loss_info = self.loss(buffed_samples, itr, i)
 
