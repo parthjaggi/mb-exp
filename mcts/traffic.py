@@ -59,7 +59,7 @@ class TrafficEnv:
         action = {self._node_id: action}
         obs, reward, done, info = self._env.step(action)
         obs = self.transform_obs(obs)
-        done = done[self._node_id]
+        done = done['__all__']
         reward = reward[self._node_id]
         info = {'discount': np.array(self.gamma, np.float32)}
         return obs, reward, done, info

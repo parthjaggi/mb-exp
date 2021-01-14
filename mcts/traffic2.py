@@ -18,6 +18,7 @@ CHANGE = 1
 class TrafficState(_TS, Node):
     def __init__(self, ls, ph):
         super().__init__()
+        self.debug = False
         self.init_phase_info()
         self.model = None
         self.action = None
@@ -72,11 +73,11 @@ class TrafficState(_TS, Node):
         ph = append_action_to_ph(self.ph, EXTEND)
         next_state = self.get_next_state(self.ls, ph)
         veh_info = get_veh_info(self.ls, next_state)
-        print(veh_info)
+        if self.debug: print(veh_info)
         
         reward = queue_reward(veh_info)
-        if reward != 0:
-            print(self.action, reward)
+        if reward != 0 and self.debug:
+            print(ph[:, -1], self.action, reward)
         return reward
 
     def is_terminal(self):

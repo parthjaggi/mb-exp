@@ -80,7 +80,6 @@ class MCTS:
     # mp: multi player
     def _simulate_sp(self, node):
         # sp: returns the discounted_reward, action_sequence.
-        # currently being used.
         "Returns the reward for a random simulation (to completion) of `node`"
         steps, discounted_reward = 0, 0
         action_sequence = []
@@ -95,6 +94,7 @@ class MCTS:
     def _simulate_sp2(self, node):
         # sp2: returns the discounted_reward, action_sequence.
         # created from sp, so that rollouts are uniform sampling from allowed timesteps.
+        # currently being used.
         "Returns the reward for a random simulation (to completion) of `node`"
         steps, discounted_reward = 0, 0
         action_sequence = []
@@ -137,7 +137,7 @@ class MCTS:
         # TODO: recheck this method.
         discounted_rewards = reward
         print('_backpropagate reward', reward)
-        previous_node = None  # previous with respect to the loop. it is next loop with respect to the path.
+        previous_node = None  # previous with respect to the reversed path loop below. it is next with respect to the forward path.
         for idx, node in enumerate(reversed(path)):
             reward = previous_node.reward() if previous_node else 0
             discounted_rewards += reward + discounted_rewards * (self.gamma)
@@ -181,17 +181,14 @@ class MCTS:
 class PureRollouts:
     "At each state, perform rollouts for each action to choose an action."
 
-    def __init__(self, single_player=False, gamma=1, sim_horizon=10):
-        # self.Q = defaultdict(int)  # total reward of each node
-        # self.N = defaultdict(int)  # total visit count for each node
-        # self.children = dict()  # children of each node
-
+    def __init__(self, single_player=False, gamma=1, sim_horizon=30, debug=True):
+        self.reset()
+        self.debug = debug
         self.gamma = gamma
         self.sim_horizon = sim_horizon
         self.single_player = single_player
-        # self.exploration_weight = exploration_weight
-        self._simulate = self._simulate_single_player if single_player else self._simulate_multi_player
-        # self._backpropagate = self._backpropagate_sp if single_player else self._backpropagate_mp
+        self._simulate = self._simulate_single_player2 if single_player else self._simulate_multi_player
+        self._backpropagate = self._backpropagate_single_player if single_player else self._backpropagate_multi_player
 
     def choose(self, node):
         "Choose the best successor of node. (Choose a move in the game)"
@@ -206,26 +203,50 @@ class PureRollouts:
                 return float("-inf")  # avoid unseen moves
             return self.Q[n] / self.N[n]  # average reward
 
-        print('choose', node.current_phase, list(map(score, self.children[node])), list(map(lambda x: x.action, self.children[node])), max(self.children[node], key=score).action)
+        max_value_node = max(self.children[node], key=score)
 
-        return max(self.children[node], key=score)
+        if self.debug:
+            print('choose debug.')
+            print('current phase:', node.current_phase)
+            print('child scores:', list(map(score, self.children[node])))
+            print('child actions:', list(map(lambda x: x.action, self.children[node])))
+            print('best action:', max_value_node.action)
+
+        self.reset()
+        return max_value_node
+    
+    def reset(self):
+        self.Q = defaultdict(int)  # total reward of each node
+        self.N = defaultdict(int)  # total visit count for each node
+        self.children = dict()  # children of each node
 
     def do_rollout(self, node):
-        "Make the tree one layer better. (Train for one iteration.)"
-        path = self._select(node)
+        """
+        If n legal actions, do 1 rollout for each legal action.
+        Do rollout from the child node reached from current node by doing legal action.
+        """
+        path = [node]
         leaf = path[-1]
+
+        if self.debug:
+            print('********************** do rollout **********************')
+            self.decribe_state(leaf)
+
         self._expand(leaf)
-        reward, action_sequence = self._simulate(leaf)
-        if reward < 0:
-            print('reward', reward, 'action_sequence', action_sequence)
-        self._backpropagate(path, reward)
+        for c in self.children[leaf]:
+            self.decribe_state(c)
+            reward, action_sequence = self._simulate(c)
+            if reward < 0 and self.debug:
+                print('reward', reward, 'action_sequence', action_sequence)
+            self._backpropagate(path + [c], reward)
 
-    def do_rollout(self, node):
-        # these rollouts are for action selection.
-        # if n allowed actions, do n rollouts, 1 for each action.
-        # horizon of rollout is hyperparameter.
 
-        # add children 
+    def decribe_state(self, node):
+        print()
+        print('state', node.ls)
+        print('phase', node.ph)
+        print('action', node.action)
+        print('phase_time', node.phase_time)
         pass
 
     def _select(self, node):
@@ -243,6 +264,44 @@ class PureRollouts:
                 return path
             node = self._uct_select(node)  # descend a layer deeper
 
+    def _expand(self, node):
+        "Update the `children` dict with the children of `node`"
+        if node in self.children:
+            return  # already expanded
+        self.children[node] = node.find_children()
+
+    def _simulate_single_player2(self, node):
+        # sp2: returns the discounted_reward, action_sequence.
+        # created from sp, so that rollouts are uniform sampling from allowed timesteps.
+        "Returns the reward for a random simulation (to completion) of `node`"
+        steps, discounted_reward = 0, 0
+        action_sequence = []
+        change_at_phase_time = np.random.randint(10, 60)
+        if self.debug: print('change_at_phase_time', change_at_phase_time)
+
+        while True:
+            if steps >= self.sim_horizon or node.is_terminal():
+                return discounted_reward, action_sequence
+            node = node.find_child_for_simulation(change_at_phase_time)
+            if node.action == CHANGE:
+                change_at_phase_time = np.random.randint(10, 60)
+                if self.debug: print('change_at_phase_time', change_at_phase_time)
+            action_sequence.append(node.action)
+            steps += 1
+            discounted_reward += (self.gamma ** (steps)) * node.reward()
+
+    def _backpropagate_single_player(self, path, reward):
+        "Send the reward back up to the ancestors of the leaf"
+        # TODO: recheck this method.
+        discounted_rewards = reward
+        print('_backpropagate reward', reward)
+        previous_node = None  # previous with respect to the reversed path loop below. it is next with respect to the forward path.
+        for idx, node in enumerate(reversed(path)):
+            reward = previous_node.reward() if previous_node else 0
+            discounted_rewards += reward + discounted_rewards * (self.gamma)
+            self.N[node] += 1
+            self.Q[node] += discounted_rewards
+            previous_node = node
 
 
 class Node(ABC):

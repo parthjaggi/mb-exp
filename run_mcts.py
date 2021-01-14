@@ -11,13 +11,18 @@ from plotting import visualize_recons, visualize_recons_multi, cutoff_image, sl_
 from tools import pformat
 from bisect import bisect_left
 import torch
+import argparse
 
 # mcts
-from mcts.monte_carlo_tree_search import MCTS, Node
-from mcts.traffic2 import TrafficState, new_traffic_state, append_action_to_ph, append_phase_to_ph
+from mcts.monte_carlo_tree_search import MCTS, PureRollouts, Node
+from mcts.traffic2 import TrafficState, new_traffic_state, append_action_to_ph, append_phase_to_ph, EXTEND, CHANGE
 # from monte_carlo_tree_search import MCTS, Node
 # from traffic2 import TrafficState, new_traffic_state, append_action_to_ph, append_phase_to_ph
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--rollouts', action='store_true', default=False)
+parser.add_argument('--static', type=int)
+args = parser.parse_args()
 
 # get obs
 env = TrafficEnv()
@@ -31,8 +36,8 @@ state = torch.load(p)
 model.load_state_dict(state['state_dict'])
 model.cutoff_image = cutoff_image
 
-# mcts
-tree = MCTS(single_player=True)
+# mcts or rollouts
+tree = PureRollouts(single_player=True) if args.rollouts else MCTS(single_player=True)
 sx = torch.Tensor(obs['dtse'][0, 3:, :, 0])
 sp = torch.Tensor(obs['phase'][0, 3:, :, 0])
 ts = new_traffic_state(sx, sp, model)
@@ -45,13 +50,38 @@ def get_traffic_state(obs):
     return ts
 
 rollout_count = 20
+episode_rewards = 0
+done = False
 
-while True:
-    for _ in range(rollout_count):
-        tree.do_rollout(ts)
+def print_statistics():
+    print('episode_rewards', episode_rewards)
+
+if args.static:
+    while not done:
+        if len(ts.legal_actions) > 1:
+            action = CHANGE if ts.phase_time == args.static else EXTEND
+        else:
+            ts = tree.choose(ts)
+            action = ts.action
+        obs, reward, done, info = env.step(action)
+        ts = get_traffic_state(obs)
+        episode_rewards += reward
+
+    print_statistics()
+    exit()
+
+
+while not done:
+    if len(ts.legal_actions) > 1:
+        for _ in range(rollout_count):
+            tree.do_rollout(ts)
     ts = tree.choose(ts)
     action = ts.action
 
     obs, reward, done, info = env.step(action)
+    episode_rewards += reward
     ts = get_traffic_state(obs)
     print('current ph', ts.ph.numpy(), reward)
+
+print_statistics()
+exit()

@@ -27,6 +27,36 @@
             "program": "${workspaceFolder}/run_mcts.py",
             "console": "integratedTerminal",
             "args": []
+        },
+        {
+            "name": "rollout",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_mcts.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--rollouts"
+            ]
+        },
+        {
+            "name": "green-min",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_mcts.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--static", "10"
+            ]
+        },
+        {
+            "name": "green-max",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_mcts.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--static", "60"
+            ]
         }
     ]
 }
