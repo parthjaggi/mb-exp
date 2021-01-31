@@ -11,12 +11,14 @@ from utils import EarlyStopping
 
 
 class DreamerModel(Model):
-    def __init__(self, config):
+    def __init__(self, config, preprocessing=False):
         super().__init__(config)
         self.dynamics = ConvTransitionModel2().cuda()
         self.optim = torch.optim.Adam(self.dynamics.parameters())
         self.earlystopping = EarlyStopping(patience=self._c.early_stop_patience)
         self.set_epoch_length()
+        self.cutoff = None
+        self.get_dataset_sample = self.get_dataset_sample2 if preprocessing else self.get_dataset_sample1
 
     def preprocess(self,):
         pass
@@ -41,17 +43,62 @@ class DreamerModel(Model):
                 # yield a sample of given length
         pass
 
-    def get_dataset_sample(self, dataset):
+    def get_dataset_sample_old(self, dataset):
         s = next(dataset)
         sample = {}
         sample['phases'] = self.preprocess(torch.Tensor(s['phases'][:,  :, 0, 3, :, 0].numpy())).permute(1, 0, 2)
         # sample['y'] = self.preprocess(torch.Tensor(s['x'][:, 1:, 0, :, :, 0].numpy()))
         sample['v'] = self.preprocess(torch.Tensor(s['x'][:, :, :, :, :, 1].numpy())) + 0.5
         sample['x'] = self.preprocess(torch.Tensor(s['x'][:, :, :, :, :, 0].numpy())).permute(1, 0, 2, 3, 4)
+        self.cutoff = 0.0
 
         ## not needed for now.
         # sample['reward'] = s['reward'].numpy()
         # sample['action'] = s['action'].numpy()
+        return sample
+
+    def get_dataset_sample1(self, dataset):
+        # No preprocessing.
+        s = dataset if isinstance(dataset, dict) else next(dataset)
+        sample = {}
+        sample['phases'] = torch.Tensor(s['phases'][:,  :, 0, 3, :, 0].numpy()).cuda().permute(1, 0, 2)
+        sample['x'] = torch.Tensor(s['x'][:, :, :, :, :, 0].numpy()).cuda().permute(1, 0, 2, 3, 4)
+        sample['action'] = torch.Tensor(s['corrected_action'][:, :].numpy()).cuda().permute(1, 0)
+        sample['phase_action'] = torch.Tensor(s['corrected_p_action'][:, :].numpy()).cuda().permute(1, 0, 2)
+        self.cutoff = 0.5
+
+        # classification model only works on the last lane
+        sample['x'] = sample['x'][:, :, 0, -1]
+
+        # dreamer requires action indices be 1 step behind observations
+        sample['x'] = sample['x'][1:]
+        sample['phases'] = sample['phases'][1:]
+        sample['action'] = sample['action'][:-1]
+        sample['phase_action'] = sample['phase_action'][:-1]
+
+        # sample['reward'] = s['reward'].numpy()
+        return sample
+
+    def get_dataset_sample2(self, dataset):
+        # With preprocessing.
+        s = dataset if isinstance(dataset, dict) else next(dataset)
+        sample = {}
+        sample['phases'] = self.preprocess(torch.Tensor(s['phases'][:,  :, 0, 3, :, 0].numpy())).permute(1, 0, 2)
+        sample['x'] = self.preprocess(torch.Tensor(s['x'][:, :, :, :, :, 0].numpy())).permute(1, 0, 2, 3, 4)
+        sample['action'] = torch.Tensor(s['corrected_action'][:, :].numpy()).cuda().permute(1, 0)
+        sample['phase_action'] = torch.Tensor(s['corrected_p_action'][:, :].numpy()).cuda().permute(1, 0, 2)
+        self.cutoff = 0.0
+
+        # classification model only works on the last lane
+        sample['x'] = sample['x'][:, :, 0, -1]
+
+        # dreamer requires action indices be 1 step behind observations
+        sample['x'] = sample['x'][1:]
+        sample['phases'] = sample['phases'][1:]
+        sample['action'] = sample['action'][:-1]
+        sample['phase_action'] = sample['phase_action'][:-1]
+
+        # sample['reward'] = s['reward'].numpy()
         return sample
 
     def preprocess(self, x):

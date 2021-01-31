@@ -74,6 +74,40 @@ class ObservationEncoder2(nn.Module):
         return self.out_size
 
 
+class ObservationEncoder3(nn.Module):
+    """
+    Adapted from ObservationEncoder2 and ClassificationModel3 (more of later).
+    Works with variable phase history length and phase actions.
+    Single lane model as compared to ObservationEncoder2 (multi lane).
+    """
+    def __init__(self, history_length=20, **kwargs):
+        super().__init__()
+        self.history_length = history_length
+        phase_action_dim = history_length + 2
+        self.out_size = 200
+
+        self.fc1 = nn.Linear(200, 400)
+        self.fc2 = nn.Linear(400, 400)
+        self.fc3 = nn.Linear(400 + phase_action_dim, 200)
+        self.fc4 = nn.Linear(200, self.out_size)
+
+    def forward(self, sample):
+        obs, phase, phase_action = sample['x'], sample['phases'], sample['phase_action']  # [50, 200]
+        phase = phase[:, :, -self.history_length:]
+
+        x = F.relu(self.fc1(obs))  # [50, 400]
+        x = F.relu(self.fc2(x))  # [50, 400]
+        x = torch.cat((x, phase, phase_action), axis=2)  # [50, 412]
+        
+        x = F.relu(self.fc3(x))  # [50, 400]
+        x = self.fc4(x)  # [50, 200]
+        return x
+
+    @property
+    def embed_size(self):
+        return self.out_size
+
+
 class ObservationDecoder(nn.Module):
     def __init__(self, depth=32, stride=2, activation=nn.ReLU, embed_size=1024, shape=(1, 4, 200)):
         super().__init__()
@@ -153,6 +187,32 @@ class ObservationDecoder2(nn.Module):
         x = self.deconv1(x)  # [50, 1, 4, 200]
 
         mean = torch.reshape(x, (*batch_shape, *self.shape))
+
+        if self.dist:
+            obs_dist = td.Independent(td.Normal(mean, 1), len(self.shape))
+            return obs_dist
+        else:
+            return mean
+
+
+class ObservationDecoder3(nn.Module):
+    """
+    Adapted from ObservationDecoder2 and ClassificationModel3 (more of later).
+    Single lane model as compared to ObservationDecoder2 (multi lane).
+    """
+    def __init__(self, embed_size=230, shape=(1, 200), dist=False, **kwargs):
+        super().__init__()
+        self.shape = shape
+        self.dist = dist
+
+        self.fc1 = nn.Linear(embed_size, 400)
+        self.fc2 = nn.Linear(400, 400)
+        self.fc3 = nn.Linear(400, 200)
+
+    def forward(self, x):  # [50, 230]
+        x = F.relu(self.fc1(x))  # [50, 400]
+        x = F.relu(self.fc2(x))  # [50, 400]
+        mean = self.fc3(x)  # [50, 200]
 
         if self.dist:
             obs_dist = td.Independent(td.Normal(mean, 1), len(self.shape))

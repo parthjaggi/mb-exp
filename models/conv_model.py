@@ -3,18 +3,20 @@ from math import ceil
 import collections
 import torch
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 
 from tools import load_dataset, Every, Once, get_test_train_episodes, save_checkpoint
 from models.base_model import Model
-from models.transition.conv_transition import ConvTransitionModel, ConvTransitionModel2, ConvTransitionModel3, ClassificationModel
-from utils import EarlyStopping
+from models.transition.conv_transition import *
+from utils import EarlyStopping, reparameterize
 
 
 class ConvModel(Model):
     def __init__(self, config):
         super().__init__(config)
         if config.type == 'conv':
-            self.dynamics = ConvTransitionModel2().cuda()
+            # self.dynamics = ConvTransitionModel2().cuda()
+            self.dynamics = ConvTransitionModel2_2().cuda()  # uses corrected action
             self.get_dataset_sample = self.get_dataset_sample_no_speed
             self.criterion = F.mse_loss
         elif config.type == 'conv_speed':
@@ -22,15 +24,22 @@ class ConvModel(Model):
             self.get_dataset_sample = self.get_dataset_sample_with_speed
             self.criterion = F.mse_loss
         elif config.type == 'class':
-            self.dynamics = ClassificationModel().cuda()
+            # self.dynamics = ClassificationModel().cuda()
+            # self.dynamics = ClassificationModel2().cuda()  # uses corrected phase action
+            self.dynamics = ClassificationModel3().cuda()  # uses limited phase history
             self.get_dataset_sample = self.get_dataset_sample_for_classification
             self.criterion = torch.nn.BCELoss()
+        elif config.type == 'latent_fc':
+            self.dynamics = LatentFCTransitionModel().cuda()
+            self.get_dataset_sample = self.get_dataset_sample_for_latent_fc
+            self.criterion = F.mse_loss
         else:
             raise NotImplementedError
 
         self.optim = torch.optim.Adam(self.dynamics.parameters())
         self.earlystopping = EarlyStopping(patience=self._c.early_stop_patience)
         self.set_epoch_length()
+        self.writer = SummaryWriter(log_dir=config.logdir, purge_step=0)
 
     def preprocess(self,):
         pass
@@ -58,10 +67,11 @@ class ConvModel(Model):
     def get_dataset_sample_no_speed(self, dataset):
         s = dataset if isinstance(dataset, dict) else next(dataset)
         sample = {}
-        sample['phases'] = self.preprocess(torch.Tensor(s['phases'][:,  0, 0, 3, :, 0].numpy()))
+        sample['phases'] = torch.Tensor(s['phases'][:,  0, 0, 3, :, 0].numpy()).cuda()
         sample['y'] = self.preprocess(torch.Tensor(s['x'][:, 1, :, :, :, 0].numpy()))
         sample['v'] = self.preprocess(torch.Tensor(s['x'][:, 0, :, :, :, 1].numpy())) + 0.5
         sample['x'] = self.preprocess(torch.Tensor(s['x'][:, 0, :, :, :, 0].numpy()))
+        sample['action'] = torch.Tensor(s['corrected_action'][:, :1].numpy()).cuda()
         
         ## not needed for now.
         sample['reward'] = s['reward'].numpy()
@@ -87,10 +97,12 @@ class ConvModel(Model):
     def get_dataset_sample_for_classification(self, dataset):
         s = dataset if isinstance(dataset, dict) else next(dataset)
         sample = {}
-        sample['phases'] = (torch.Tensor(s['phases'][:,  0, 0, 3, :, 0].numpy())).cuda()
-        sample['y'] = (torch.Tensor(s['x'][:, 1, :, :, :, 0].numpy())).cuda()
-        sample['v'] = (torch.Tensor(s['x'][:, 0, :, :, :, 1].numpy())).cuda() + 0.5
-        sample['x'] = (torch.Tensor(s['x'][:, 0, :, :, :, 0].numpy())).cuda()
+        sample['phases'] = torch.Tensor(s['phases'][:,  0, 0, 3, :, 0].numpy()).cuda()
+        sample['y'] = torch.Tensor(s['x'][:, 1, :, :, :, 0].numpy()).cuda()
+        sample['v'] = torch.Tensor(s['x'][:, 0, :, :, :, 1].numpy()).cuda()
+        sample['x'] = torch.Tensor(s['x'][:, 0, :, :, :, 0].numpy()).cuda()
+        sample['action'] = torch.Tensor(s['corrected_action'][:, :1].numpy()).cuda()
+        sample['phase_action'] = torch.Tensor(s['corrected_p_action'][:, 0].numpy()).cuda()
 
         # classification model only works on the last lane
         sample['x'] = sample['x'][:, 0, -1]
@@ -98,7 +110,37 @@ class ConvModel(Model):
         
         ## not needed for now.
         sample['reward'] = s['reward'].numpy()
-        # sample['action'] = s['action'].numpy()
+        return sample
+
+    def get_dataset_sample_for_classification_kstep(self, dataset):
+        # to see accuracy of k-step predictions
+        # need formatted samples of higher batch_length
+        s = dataset if isinstance(dataset, dict) else next(dataset)
+        sample = {}
+        sample['phases'] = torch.Tensor(s['phases'][:,  :, 0, 3, :, 0].numpy()).cuda()
+        sample['x'] = torch.Tensor(s['x'][:, :, :, :, :, 0].numpy()).cuda()
+        sample['action'] = torch.Tensor(s['corrected_action'][:, :].numpy()).cuda()
+        sample['phase_action'] = torch.Tensor(s['corrected_p_action'][:, :].numpy()).cuda()
+
+        # classification model only works on the last lane
+        sample['x'] = sample['x'][:, :, 0, -1]
+
+        sample['reward'] = s['reward'].numpy()
+        return sample
+
+    def get_dataset_sample_for_latent_fc(self, dataset):
+        s = dataset if isinstance(dataset, dict) else next(dataset)
+        sample = {}
+        sample['phases'] = torch.Tensor(s['phases'][:,  0, 0, 3, :, 0].numpy()).cuda()
+        sample['action'] = torch.Tensor(s['corrected_action'][:, :1].numpy()).cuda()
+        sample['reward'] = s['reward'].numpy()
+
+        mu = (torch.Tensor(s['mu'].numpy())).cuda()
+        logvar = (torch.Tensor(s['logvar'].numpy())).cuda()
+        latent = reparameterize(mu, logvar)
+
+        sample['x'] = latent[:, 0]
+        sample['y'] = latent[:, 1]
         return sample
 
     def preprocess(self, x):
@@ -132,9 +174,10 @@ class ConvModel(Model):
         cur_best = None
         for epoch in range(self._c.epochs):
             self.train_dynamics(epoch)
-            test_loss = self.test()
+            test_loss = self.test(epoch)
             # scheduler.step(test_loss)
             self.earlystopping.step(test_loss)
+            self.writer.file_writer.flush()
 
             # checkpointing
             best_filename = self._c.logdir / 'best.tar'
@@ -165,7 +208,7 @@ class ConvModel(Model):
         for u in range(self.epoch_length):
             s = self.get_dataset_sample(self._dataset)
             self.optim.zero_grad()
-            y_pred = self.dynamics(s['x'], s['phases'])
+            y_pred = self.dynamics(s)
             loss = self.criterion(y_pred, s['y'])
             loss.backward()
             train_loss += loss
@@ -175,20 +218,23 @@ class ConvModel(Model):
                 t2 = time.time()
                 print(u, round(t2-t1, 2), '{:.10f}'.format(loss.item() / self._c.batch_size))
         
-        print('====> Epoch: {} Average loss: {:.10f}'.format(epoch, train_loss / (self.epoch_length * self._c.batch_size)))
+        norm_train_loss = (train_loss / (self.epoch_length * self._c.batch_size)).item()
+        self.writer.add_scalar('train/loss', norm_train_loss, epoch)
+        print('====> Epoch: {} Average loss: {:.10f}'.format(epoch, norm_train_loss))
     
-    def test(self):
+    def test(self, epoch):
         self.dynamics.eval()
         test_loss = 0
         for u in range(self.test_epoch_length):
             s = self.get_dataset_sample(self._test_dataset)
-            y_pred = self.dynamics(s['x'], s['phases'])
+            y_pred = self.dynamics(s)
             test_loss += F.mse_loss(y_pred, s['y'])
         
-        test_loss /= (self.test_epoch_length * self._c.batch_size)
-        print('====> Test set loss: {:.10f}'.format(test_loss))
+        norm_test_loss = (test_loss / (self.test_epoch_length * self._c.batch_size)).item()
+        self.writer.add_scalar('test/loss', norm_test_loss, epoch)
+        print('====> Test set loss: {:.10f}'.format(norm_test_loss))
         print()
-        return test_loss
+        return norm_test_loss
 
     def save(self):
         raise NotImplementedError

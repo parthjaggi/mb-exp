@@ -1,7 +1,7 @@
 
 # General.
 epochs: 10000 # 1, 10, 1000
-type: "latent_fc"  # fully connected
+type: "latent_fc"  # fully connected model for latent observation
 early_stop_patience: 40
 seed: 0
 steps: 5000000
@@ -17,7 +17,7 @@ save_model_every: 20000
 checkpoint_path: "."
 resdir: "results"
 logdir: "logs"
-datadir: "data/dtse/test0_1"
+datadir: "data/dtse_latent/test0_1_1"
 
 # Environment.
 task: dmc_walker_walk

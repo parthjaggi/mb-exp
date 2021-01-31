@@ -9,7 +9,7 @@ class TrafficEnv:
     def __init__(self):
         # config_path = '/home/parth/repos/traffic-management/sow45_code3/wolf/ray/tests/traffic_env/test4_2/iql_global_reward_no_dueling_dtse.yaml'
         # config_path = '/home/parth/repos/traffic-management/sow45_code3/wolf/ray/tests/traffic_env/test4_2/iql_global_reward_no_dueling_trans_image.yaml'
-        config_path = '/home/parth/repos/traffic-management/sow45_code3/wolf/ray/tests/traffic_env/test0_1/iql_global_reward_dtse.yaml'
+        config_path = '/home/parth/repos/traffic-management/sow45_code3/wolf/ray/tests/traffic_env/test0_1_1/iql_global_reward_dtse.yaml'
         
         env_name, env_config = self.load_config(config_path)
         # self._size = (16, 200)  # for test4_2 dtse

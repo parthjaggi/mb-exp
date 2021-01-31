@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 import math
 import numpy as np
+from plotting import show_interactive_rollout
 
 EXTEND = 0
 CHANGE = 1
@@ -230,18 +231,20 @@ class PureRollouts:
 
         if self.debug:
             print('********************** do rollout **********************')
-            self.decribe_state(leaf)
+            self.describe_state(leaf)
 
         self._expand(leaf)
         for c in self.children[leaf]:
-            self.decribe_state(c)
-            reward, action_sequence = self._simulate(c)
-            if reward < 0 and self.debug:
+            self.describe_state(c)
+            reward, action_sequence, rollout_sequence = self._simulate(c)
+            if self.debug:
                 print('reward', reward, 'action_sequence', action_sequence)
+            # if self.debug:
+            #     show_interactive_rollout(rollout_sequence)
             self._backpropagate(path + [c], reward)
 
 
-    def decribe_state(self, node):
+    def describe_state(self, node):
         print()
         print('state', node.ls)
         print('phase', node.ph)
@@ -276,16 +279,20 @@ class PureRollouts:
         "Returns the reward for a random simulation (to completion) of `node`"
         steps, discounted_reward = 0, 0
         action_sequence = []
-        change_at_phase_time = np.random.randint(10, 60)
+        rollout_sequence = []
+        rollout_sequence.append(node.ls)
+        change_at_phase_time = np.random.randint(0, 60)
         if self.debug: print('change_at_phase_time', change_at_phase_time)
 
         while True:
             if steps >= self.sim_horizon or node.is_terminal():
-                return discounted_reward, action_sequence
-            node = node.find_child_for_simulation(change_at_phase_time)
-            if node.action == CHANGE:
-                change_at_phase_time = np.random.randint(10, 60)
-                if self.debug: print('change_at_phase_time', change_at_phase_time)
+                return discounted_reward, action_sequence, rollout_sequence
+            # node = node.find_child_for_simulation(change_at_phase_time)
+            node = node.find_child_for_simulation2(steps, change_at_phase_time)  # PURE EXTEND
+            rollout_sequence.append(node.ls)
+            # if node.action == CHANGE:
+            #     change_at_phase_time = np.random.randint(10, 60)
+            #     if self.debug: print('change_at_phase_time', change_at_phase_time)
             action_sequence.append(node.action)
             steps += 1
             discounted_reward += (self.gamma ** (steps)) * node.reward()

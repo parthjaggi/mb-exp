@@ -4,6 +4,7 @@ from collections import namedtuple
 from random import choice
 from bisect import bisect_left
 from mcts.monte_carlo_tree_search import MCTS, Node
+from flow.core.util import get_phase_action
 
 _TTTB = namedtuple("TicTacToeBoard", "tup turn winner terminal")
 _TS = namedtuple("TrafficState", "ls ph")  # lane_state and phase_history
@@ -56,6 +57,17 @@ class TrafficState(_TS, Node):
             action = next(iter(self.legal_actions))
         return self.take_action(action)
 
+    def find_child_for_simulation2(self, steps, change_at_phase_time):
+        # PURELY EXTEND.
+        if self.terminal:
+            return None
+        if len(self.legal_actions) > 1:
+            # action = CHANGE if steps > change_at_phase_time else EXTEND
+            action = EXTEND
+        else:
+            action = next(iter(self.legal_actions))
+        return self.take_action(action)
+
     def find_random_child(self):
         if self.terminal:
             return None
@@ -71,7 +83,7 @@ class TrafficState(_TS, Node):
         # Get next state by EXTENDing current state.
         # Get speeds, and estimate reward.
         ph = append_action_to_ph(self.ph, EXTEND)
-        next_state = self.get_next_state(self.ls, ph)
+        next_state = self.get_next_state(self.ls, self.ph, EXTEND)
         veh_info = get_veh_info(self.ls, next_state)
         if self.debug: print(veh_info)
         
@@ -83,9 +95,12 @@ class TrafficState(_TS, Node):
     def is_terminal(self):
         return self.terminal
     
-    def get_next_state(self, ls, ph):
-        ls2 = self.model(ls, ph)
-        ls2 = self.model.cutoff_image(ls2, 0.5, minmax=[0, 1])
+    def get_next_state(self, ls, ph, action):
+        action = torch.Tensor([action]).reshape(1, -1)
+        phase_action = torch.Tensor(get_phase_action(ph[0, -1].item(), action)).reshape(1, -1)
+        sample = {'x': ls, 'phases': ph, 'action': action, 'phase_action': phase_action}
+        ls2 = self.model(sample)  # TODO: is the preprocessing here, same as what recieved during model training?
+        ls2 = self.model.cutoff_image(ls2, self.model.cutoff, minmax=[0, 1])
         return ls2
 
     def take_action(self, action):
@@ -93,7 +108,7 @@ class TrafficState(_TS, Node):
         assert action in self.legal_actions
         
         ph = append_action_to_ph(self.ph, action)
-        next_state = self.get_next_state(self.ls, ph)
+        next_state = self.get_next_state(self.ls, self.ph, action)
         return new_traffic_state(next_state, ph, self.model, action)
 
     # def take_action(self, index):
