@@ -1,10 +1,12 @@
 from functools import partial
+import torch
+from mcts.traffic2 import EXTEND, CHANGE
 
 
-class EarlyStopping(object): # pylint: disable=R0902
+class EarlyStopping(object):
     """
-    Gives a criterion to stop training when a given metric is not
-    improving anymore
+    Gives a criterion to stop training when a given metric is not improving anymore.
+
     Args:
         mode (str): One of `min`, `max`. In `min` mode, training will
             be stopped when the quantity monitored has stopped
@@ -23,7 +25,6 @@ class EarlyStopping(object): # pylint: disable=R0902
             mode or best * ( 1 - threshold ) in `min` mode.
             In `abs` mode, dynamic_threshold = best + threshold in
             `max` mode or best - threshold in `min` mode. Default: 'rel'.
-
     """
 
     def __init__(self, mode='min', patience=10, threshold=1e-4, threshold_mode='rel'):
@@ -63,7 +64,6 @@ class EarlyStopping(object): # pylint: disable=R0902
         """ Should we stop learning? """
         return self.num_bad_epochs > self.patience
 
-
     def _cmp(self, mode, threshold_mode, threshold, a, best): # pylint: disable=R0913, R0201
         if mode == 'min' and threshold_mode == 'rel':
             rel_epsilon = 1. - threshold
@@ -100,3 +100,24 @@ class EarlyStopping(object): # pylint: disable=R0902
         self.__dict__.update(state_dict)
         self._init_is_better(mode=self.mode, threshold=self.threshold,
                              threshold_mode=self.threshold_mode)
+
+
+def first(iterable):
+    return next(iter(iterable))
+
+
+def reparameterize(mu, logvar):
+    std = torch.exp(0.5 * logvar)
+    eps = torch.randn_like(std)
+    return mu + eps * std
+
+
+def get_phase_action_from_action(last_phase, action):
+    phase_to_onehot_phase = {0: [1, 0], 1: [0, 1]}
+
+    if action == EXTEND:
+        return phase_to_onehot_phase[last_phase]
+    
+    if action == CHANGE:
+        next_phase = 1 - last_phase
+        return phase_to_onehot_phase[next_phase]

@@ -38,7 +38,8 @@ def load_dataset(config, eps):
     episode = next(load_episodes(directory, 1, eps=eps))
     types = {k: v.dtype for k, v in episode.items()}
     shapes = {k: (None,) + v.shape[1:] for k, v in episode.items()}
-    generator = lambda: load_episodes(directory, config.train_steps, config.batch_length, config.dataset_balance, eps=eps)
+    batch_length = config.batch_length + 1 if config.type == 'dream' else config.batch_length
+    generator = lambda: load_episodes(directory, config.train_steps, batch_length, config.dataset_balance, eps=eps)
     dataset = tf.data.Dataset.from_generator(generator, types, shapes)
     dataset = dataset.batch(config.batch_size, drop_remainder=True)
     dataset = dataset.map(functools.partial(preprocess2, config=config))
@@ -116,7 +117,7 @@ def get_test_train_episodes(config):
     filenames = list(config.datadir.glob('*.npy'))
     # train_eps = filenames[:-2]
     # test_eps = filenames[-2:]
-    test_eps = [i for i in filenames if '_9' in str(i) or '_20' in str(i)]
+    test_eps = [i for i in filenames if '8.npy' in str(i) or '9.npy' in str(i)]
     train_eps = [i for i in filenames if i not in test_eps]
     return train_eps, test_eps
 

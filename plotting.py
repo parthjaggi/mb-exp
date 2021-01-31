@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Button
 import torch
 
 
@@ -108,3 +109,42 @@ def visualize_recons_multi(sx, sy, sphases, y_pred, y_pred2, t, cutoff=0, only_c
     plt_idx += 1
 
     plt.show()
+
+
+class Index():
+    def __init__(self, data, plot):
+        self.idx = 0
+        self.data = data
+        self.plot = plot
+
+    def next(self, event):
+        if self.idx + 1 >= len(self.data): return
+        self.idx += 1
+        self.plot.set_data(self.data[self.idx])
+        plt.draw()
+
+    def prev(self, event):
+        if self.idx - 1 < 0: return
+        self.idx -= 1
+        self.plot.set_data(self.data[self.idx])
+        plt.draw()
+    
+    def store_buttons(self, *buttons):
+        self.buttons = []
+        self.buttons.extend(buttons)
+
+
+def show_interactive_rollout(rollout_list):
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(bottom=0.2)
+
+    image = plt.imshow(rollout_list[0], interpolation='nearest', aspect='auto', cmap='gray', vmin=0, vmax=1)
+
+    callback = Index(rollout_list, image)
+    axprev = plt.axes([0.7, 0.05, 0.1, 0.075])
+    axnext = plt.axes([0.81, 0.05, 0.1, 0.075])
+    bnext = Button(axnext, 'Next')
+    bprev = Button(axprev, 'Previous')
+    bnext.on_clicked(callback.next)
+    bprev.on_clicked(callback.prev)
+    callback.store_buttons(bnext, bprev)

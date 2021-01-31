@@ -15,7 +15,7 @@ from models.veh_model import VehModel
 def run(config, override_config):
     config = load_config(config)
 
-    if config.type in ['conv', 'conv_speed', 'class']:
+    if config.type in ['conv', 'conv_speed', 'class', 'latent_fc']:
         model = ConvModel(config)
     elif config.type == 'veh':
         model = VehModel(config)

@@ -16,6 +16,7 @@
                 // "configs/conv_based.yaml",
                 // "configs/conv_speed_based.yaml",
                 "configs/class_based.yaml",
+                // "configs/latent_fc_based.yaml",
 
                 // "configs/vm_based.yaml"
             ]
@@ -45,7 +46,7 @@
             "program": "${workspaceFolder}/run_mcts.py",
             "console": "integratedTerminal",
             "args": [
-                "--static", "10"
+                "--static", "10,10"
             ]
         },
         {
@@ -55,7 +56,17 @@
             "program": "${workspaceFolder}/run_mcts.py",
             "console": "integratedTerminal",
             "args": [
-                "--static", "60"
+                "--static", "60,60"
+            ]
+        },
+        {
+            "name": "red-min-green-max",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_mcts.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--static", "10,60"
             ]
         }
     ]
