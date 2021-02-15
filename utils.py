@@ -106,6 +106,12 @@ def first(iterable):
     return next(iter(iterable))
 
 
+def second(iterable):
+    iterator = iter(iterable)
+    next(iterator)
+    return next(iterator)
+
+
 def reparameterize(mu, logvar):
     std = torch.exp(0.5 * logvar)
     eps = torch.randn_like(std)
@@ -113,7 +119,7 @@ def reparameterize(mu, logvar):
 
 
 def get_phase_action_from_action(last_phase, action):
-    phase_to_onehot_phase = {0: [1, 0], 1: [0, 1]}
+    phase_to_onehot_phase = {0: [1, 0], 1: [0, 1]}  # 0: rGrG, 1: GrGr
 
     if action == EXTEND:
         return phase_to_onehot_phase[last_phase]
@@ -121,3 +127,18 @@ def get_phase_action_from_action(last_phase, action):
     if action == CHANGE:
         next_phase = 1 - last_phase
         return phase_to_onehot_phase[next_phase]
+
+
+def obs_to_ts(obs):
+    """
+    Generate traffic state from observation.
+    For the multi-lane case, need the first (NS) and last (WE) lane.
+
+    Args:
+        obs (dict): Observation from the environment.
+
+    Returns:
+        tuple: tuple of numpy.ndarrays corresponding to lane_state (ls), phase_history (ph) and speed_state (ss).
+    """
+    LANES = [0, 3]  # for test0_1_1/iql_global_reward_dtse.yaml.
+    return torch.Tensor(obs['dtse'][0, LANES, :, 0]), torch.Tensor(obs['phase'][0, LANES, :, 0]), torch.Tensor(obs['dtse'][0, LANES, :, 1])

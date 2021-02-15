@@ -15,10 +15,10 @@
 
                 // "configs/conv_based.yaml",
                 // "configs/conv_speed_based.yaml",
-                "configs/class_based.yaml",
+                // "configs/class_based.yaml",
                 // "configs/latent_fc_based.yaml",
 
-                // "configs/vm_based.yaml"
+                "configs/vm_based.yaml"
             ]
         },
         {

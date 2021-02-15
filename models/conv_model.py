@@ -33,6 +33,10 @@ class ConvModel(Model):
             self.dynamics = LatentFCTransitionModel().cuda()
             self.get_dataset_sample = self.get_dataset_sample_for_latent_fc
             self.criterion = F.mse_loss
+        elif config.type == 'veh':
+            self.dynamics = VehicleTransitionModel().cuda()
+            self.get_dataset_sample = self.get_dataset_sample_for_veh_model
+            self.criterion = F.mse_loss
         else:
             raise NotImplementedError
 
@@ -141,6 +145,21 @@ class ConvModel(Model):
 
         sample['x'] = latent[:, 0]
         sample['y'] = latent[:, 1]
+        return sample
+
+    def get_dataset_sample_for_veh_model(self, dataset):
+        s = dataset if isinstance(dataset, dict) else next(dataset)
+        sample = {}
+        # bs = self._c.batch_size
+        sample['x'] = torch.Tensor(s['x'][:, 0, :].numpy()).cuda()
+        sample['y'] = torch.Tensor(s['y'][:, 0, :].numpy()).cuda()
+        sample['phases'] = torch.Tensor(s['phases'][:, 0, :].numpy()).cuda()
+
+        sample['x'][:, [0, 2]] = sample['x'][:, [0, 2]] / 200  # detection range
+        sample['x'][:, [1, 3]] = sample['x'][:, [1, 3]] / 35
+
+        sample['y'][:, 0] = sample['y'][:, 0] / 200
+        sample['y'][:, 1] = sample['y'][:, 1] / 35
         return sample
 
     def preprocess(self, x):

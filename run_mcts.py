@@ -16,6 +16,7 @@ import argparse
 # mcts
 from mcts.monte_carlo_tree_search import MCTS, PureRollouts, Node
 from mcts.traffic2 import TrafficState, new_traffic_state, append_action_to_ph, append_phase_to_ph, EXTEND, CHANGE
+from utils import obs_to_ts
 # from monte_carlo_tree_search import MCTS, Node
 # from traffic2 import TrafficState, new_traffic_state, append_action_to_ph, append_phase_to_ph
 
@@ -44,25 +45,25 @@ p = Path('./results/classification/2021-01-27--T08-05-26/best.tar')
 # model = ConvTransitionModel2_2()
 # p = Path('./results/2021-01-25--T19-51-36/best.tar')
 
+# was using ClassificationModel2 before this.
+# model = VehicleTransitionModelWrapper(VehicleTransitionModel())
+# p = Path('./results/vehicle/2021-02-13--T13-43-01/best.tar')
+
 state = torch.load(p)
 model.load_state_dict(state['state_dict'])
 model.cutoff_image = cutoff_image
 model.cutoff = 0.5
 
-# mcts or rollouts
-tree = PureRollouts(single_player=True) if args.rollouts else MCTS(single_player=True)
-sx = torch.Tensor(obs['dtse'][0, 3:, :, 0])
-sp = torch.Tensor(obs['phase'][0, 3:, :, 0])
-ts = new_traffic_state(sx, sp, model)
-
-
 def get_traffic_state(obs):
-    sx = torch.Tensor(obs['dtse'][0, 3:, :, 0])
-    sp = torch.Tensor(obs['phase'][0, 3:, :, 0])
-    ts = new_traffic_state(sx, sp, model)
+    sx, sp, ss = obs_to_ts(obs)
+    ts = new_traffic_state(sx, sp, ss, model)
     return ts
 
-rollout_count = 20
+# mcts or rollouts
+tree = PureRollouts(single_player=True) if args.rollouts else MCTS(single_player=True)
+ts = get_traffic_state(obs)
+
+rollout_count = 1
 episode_rewards = 0
 done = False
 
@@ -71,7 +72,7 @@ def print_statistics():
 
 if args.static:
     p1_time, p2_time = map(int, args.static.split(','))
-    phase_times = {0: p1_time, 1: p2_time}
+    phase_times = {0: p1_time, 1: p2_time}  # 0: rGrG (p1), 1: GrGr (p2).
     while not done:
         phase = ts.ph[0, -1].item()
         if len(ts.legal_actions) > 1:
@@ -95,11 +96,7 @@ while not done:
     ts = tree.choose(ts)
     action = ts.action
 
-    print('done', done)
-    print('episode_rewards', episode_rewards)
     obs, reward, done, info = env.step(action)
-    print('done', done)
-    print('episode_rewards', episode_rewards)
     episode_rewards += reward
     ts = get_traffic_state(obs)
     # print('current ph', ts.ph.numpy(), reward)

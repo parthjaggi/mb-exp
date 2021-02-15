@@ -236,9 +236,11 @@ class PureRollouts:
         self._expand(leaf)
         for c in self.children[leaf]:
             self.describe_state(c)
-            reward, action_sequence, rollout_sequence = self._simulate(c)
+            reward, action_sequence, rollout_sequence, reward_sequence = self._simulate(c)
             if self.debug:
-                print('reward', reward, 'action_sequence', action_sequence)
+                print('action_sequence', action_sequence)
+                print('reward_sequence', reward_sequence)
+                print('reward', reward)
             # if self.debug:
             #     show_interactive_rollout(rollout_sequence)
             self._backpropagate(path + [c], reward)
@@ -246,9 +248,10 @@ class PureRollouts:
 
     def describe_state(self, node):
         print()
-        print('state', node.ls)
-        print('phase', node.ph)
-        print('action', node.action)
+        print('state:', '[NS]', node.ls[0].sum().item(), '[WE]', node.ls[1].sum().item())
+        print('phase:', '[NS]', node.ph[0, -15:])
+        print('phase:', '[WE]', node.ph[1, -15:])
+        print('creation action:', node.action)
         print('phase_time', node.phase_time)
         pass
 
@@ -279,23 +282,33 @@ class PureRollouts:
         "Returns the reward for a random simulation (to completion) of `node`"
         steps, discounted_reward = 0, 0
         action_sequence = []
+        reward_sequence = []
         rollout_sequence = []
         rollout_sequence.append(node.ls)
-        change_at_phase_time = np.random.randint(0, 60)
+        change_at_phase_time = np.random.randint(0, 30)  # 60 for 1 and 2. 30 for find_child_for_simulation3.
         if self.debug: print('change_at_phase_time', change_at_phase_time)
 
         while True:
             if steps >= self.sim_horizon or node.is_terminal():
-                return discounted_reward, action_sequence, rollout_sequence
+                return discounted_reward, action_sequence, rollout_sequence, reward_sequence
+
             # node = node.find_child_for_simulation(change_at_phase_time)
-            node = node.find_child_for_simulation2(steps, change_at_phase_time)  # PURE EXTEND
+
+            # PURE EXTEND
+            node = node.find_child_for_simulation2()
+
+            # change if steps > change_at_phase_time
+            # node = node.find_child_for_simulation3(steps > change_at_phase_time)
+
             rollout_sequence.append(node.ls)
             # if node.action == CHANGE:
-            #     change_at_phase_time = np.random.randint(10, 60)
+            #     change_at_phase_time = np.random.randint(10, 60)  # (30, 60) for find_child_for_simulation3.
             #     if self.debug: print('change_at_phase_time', change_at_phase_time)
             action_sequence.append(node.action)
+            reward = node.reward()
+            reward_sequence.append(reward)
             steps += 1
-            discounted_reward += (self.gamma ** (steps)) * node.reward()
+            discounted_reward += (self.gamma ** (steps)) * reward
 
     def _backpropagate_single_player(self, path, reward):
         "Send the reward back up to the ancestors of the leaf"

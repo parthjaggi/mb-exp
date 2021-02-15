@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 from torch import nn
 import torch
+from utils import first, second
 
 
 class ConvTransitionModel(nn.Module):
@@ -255,10 +256,102 @@ class VehicleTransitionModel(nn.Module):
         self.fc3 = nn.Linear(128, 128)
         self.fc4 = nn.Linear(128, output_shape)
 
-    def forward(self, x, phase):
+    def forward(self, sample):
+        x, phase = sample['x'], sample['phases']
         x = torch.cat((x, phase), 1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
         x = self.fc4(x)
         return x
+
+
+class VehicleTransitionModelWrapper:
+    """
+    Wrapper for VehicleTransitionModel type models.
+    Used when this model is to used inside rollouts.
+    """
+    DISCRETIZATION = LINK_LENGTH = 200
+    HALF_WIDTH = LINK_LENGTH / (DISCRETIZATION * 2)
+
+    def __init__(self, model):
+        self.model = model
+
+    def __call__(self, sample):
+        sample = {'x': sample['x'].reshape(-1), 'v': sample['v'].reshape(-1), 'p': sample['next_phases']}
+        samples, p = self.convert_to_vtm_format(sample)
+        ls, ss = self.convert_vtm_output_to_dtse(samples, p)
+        return ls, ss
+    
+    def convert_to_vtm_format(self, sample):
+        """
+        Creates samples in the format usable by the vehicle transition model.
+        Samples have the following features: veh_pos, veh_spd, ds_veh_pos, ds_veh_spd, has_ds_veh.
+
+        Args:
+            x (torch.Tensor): Single lane state. Should be of shape: [DISCRETIZATION].
+            v (torch.Tensor): Single lane speed state. Should be of shape: [DISCRETIZATION].
+            p (torch.Tensor): Phase history. Should be of shape: [1, HISTORY_LEN].
+
+        Returns:
+            tuple: Tuple of 2 torch Tensors which has samples and phase information for vehicle transition model.
+                samples is of shape (vehicle count, number of features). phase is of shape (vehicle count, HISTORY_LEN).
+        """
+        
+        POS_IDXS, HISTORY_LEN = [0, 2], 60
+        veh_infos = []
+
+        x, v, p = sample['x'], sample['v'], sample['p']
+
+        assert first(x.shape) == self.DISCRETIZATION
+        assert first(v.shape) == self.DISCRETIZATION
+        assert second(p.shape) == HISTORY_LEN
+
+        position_idxs = first(torch.where(x > 0))
+
+        for idx in torch.flip(position_idxs, [0]):
+            position = idx + self.HALF_WIDTH
+            speed = v[idx]
+            veh_infos.append(VehicleInfo(position, speed))
+
+        samples = []
+        for idx, veh_info in enumerate(veh_infos):
+            downstream_veh_idx = idx + 1
+            if downstream_veh_idx < len(veh_infos):
+                downstream_veh_info = veh_infos[downstream_veh_idx]
+                samples.append([veh_info.pos, veh_info.vel, downstream_veh_info.pos, downstream_veh_info.vel, 1])
+            else:
+                samples.append([veh_info.pos, veh_info.vel, 0, 0, 0])
+
+        samples = torch.Tensor(samples).to(x.device)
+
+        if len(veh_infos):
+            samples[:, POS_IDXS] = samples[:, POS_IDXS] / self.LINK_LENGTH
+            p = p.expand([first(samples.shape), -1]).to(x.device)
+
+        return samples, p
+
+    def convert_vtm_output_to_dtse(self, samples, p):
+        MEAN_OBS_VALUE = 0.0
+        dtse_x = torch.zeros(self.DISCRETIZATION) - MEAN_OBS_VALUE
+        dtse_v = torch.zeros(self.DISCRETIZATION)
+        
+        if len(samples):
+            input_samples = {'x': samples, 'phases': p}
+            veh_model_output = self.model(input_samples)
+
+            for norm_pos, norm_spd in veh_model_output:
+                if norm_pos < 0: continue
+                position_idx = int(norm_pos * self.LINK_LENGTH / (2 * self.HALF_WIDTH))
+                dtse_x[position_idx] += 1
+                dtse_v[position_idx] = norm_spd
+        return dtse_x, dtse_v
+
+    def load_state_dict(self, state_dict):
+        self.model.load_state_dict(state_dict)
+
+
+class VehicleInfo:
+    def __init__(self, pos, vel):
+        self.pos = pos
+        self.vel = vel
